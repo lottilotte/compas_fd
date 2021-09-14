@@ -1,12 +1,8 @@
 from numpy import array
 from numpy import float64
-from scipy.sparse import diags
-from scipy.sparse.linalg import spsolve
 
-from compas.numerical import connectivity_matrix
-from compas.numerical import normrow
-
-from compas_fd.loads import SelfweightCalculator
+from compas_fd.fd import fd_numpy
+# from compas_fd.loads import SelfweightCalculator
 
 
 def mesh_fd_numpy(mesh):
@@ -14,40 +10,36 @@ def mesh_fd_numpy(mesh):
 
     Parameters
     ----------
-    mesh : compas_fd.datastructures.CableMesh
+    mesh : :class:`compas_fd.datastructures.CableMesh`
         The mesh to equilibriate.
 
     Returns
     -------
-    None
-        The function updates the input mesh and returns nothing.
+    :class:`compas_fd.datastructures.CableMesh`
+        The function returns an updated mesh.
 
     """
     k_i = mesh.key_index()
     fixed = mesh.vertices_where({'is_anchor': True})
     fixed = [k_i[key] for key in fixed]
-    free = list(set(range(mesh.number_of_vertices())) - set(fixed))
-    xyz = array(mesh.vertices_attributes('xyz'), dtype=float64)
-    p = array(mesh.vertices_attributes(('px', 'py', 'pz')), dtype=float64)
+    vertices = array(mesh.vertices_attributes('xyz'), dtype=float64)
+    loads = array(mesh.vertices_attributes(('px', 'py', 'pz')), dtype=float64)
     edges = [(k_i[u], k_i[v]) for u, v in mesh.edges_where({'is_edge': True})]
     q = array([attr['q'] for key, attr in mesh.edges_where({'is_edge': True}, True)], dtype=float64).reshape((-1, 1))
 
-    density = mesh.attributes['density']
+    # density = mesh.attributes['density']
+    # calculate_sw = SelfweightCalculator(mesh, density=density)
 
-    calculate_sw = SelfweightCalculator(mesh, density=density)
-
-    # replace by fd_numpy
+    vertices, r, f = fd_numpy(vertices=vertices, edges=edges, loads=loads, q=q, fixed=fixed)
 
     for key, attr in mesh.vertices(True):
         index = k_i[key]
-        attr['x'] = xyz[index, 0]
-        attr['y'] = xyz[index, 1]
-        attr['z'] = xyz[index, 2]
-        attr['rx'] = r[index, 0]
-        attr['ry'] = r[index, 1]
-        attr['rz'] = r[index, 2]
+        attr['x'] = vertices[index, 0]
+        attr['y'] = vertices[index, 1]
+        attr['z'] = vertices[index, 2]
+        attr['_rx'] = r[index, 0]
+        attr['_ry'] = r[index, 1]
+        attr['_rz'] = r[index, 2]
 
-    for index, (key, attr) in enumerate(mesh.edges_where({'is_edge': True}, True)):
-        attr['q'] = q[index, 0]
-        attr['f'] = f[index, 0]
-        attr['l'] = l[index, 0]
+    for index, (key, attr) in enumerate(mesh.edges_where({'_is_edge': True}, True)):
+        attr['_f'] = f[index, 0]
